@@ -1,0 +1,10 @@
+# Build output
+PhotoSifter/Build/
+Build/
+
+# macOS
+.DS_Store
+*.swp
+
+# Logs
+PhotoSifter-debug.log
