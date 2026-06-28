@@ -1,12 +1,13 @@
 #!/bin/bash
-# Package the built PhotoSifter.app as "Deleter.app" with the Deleter icon,
-# then build a pretty drag-to-Applications DMG into release/v1.0.
+# Package the built Deleter.app (with the Deleter icon) into a pretty
+# drag-to-Applications DMG into release/v1.0.
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
+
 ROOT="$(pwd)"
 BUILD="$ROOT/Build"
-SRC_APP="$BUILD/PhotoSifter.app"
+SRC_APP="$BUILD/Deleter.app"
 RELEASE="$ROOT/release/v1.0"
 ICONSET_ICNS="$RELEASE/Deleter.icns"
 
@@ -24,22 +25,11 @@ DMG_APP="$STAGE/Deleter.app"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 
-echo "==> Staging Deleter.app (renamed from PhotoSifter.app)…"
+echo "==> Staging Deleter.app…"
 cp -R "$SRC_APP" "$DMG_APP"
 
-# Rename the executable + fix Info.plist to present as "Deleter".
-BIN_OLD="$DMG_APP/Contents/MacOS/PhotoSifter"
-BIN_NEW="$DMG_APP/Contents/MacOS/Deleter"
-if [ -f "$BIN_OLD" ]; then
-    mv "$BIN_OLD" "$BIN_NEW"
-fi
-PLIST="$DMG_APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Deleter" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleName Deleter" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Deleter" "$PLIST"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.deleter.app" "$PLIST"
-# Keep version strings.
 # Point the bundle at our custom icon.
+PLIST="$DMG_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Delete :CFBundleIconFile" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string Deleter" "$PLIST"
 

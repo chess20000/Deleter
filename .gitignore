@@ -1,5 +1,4 @@
 # Build output
-PhotoSifter/Build/
 Build/
 
 # Release artifacts (DMG + generated icons — reproducible via build.sh / make_icon.py)
@@ -10,4 +9,4 @@ release/
 *.swp
 
 # Logs
-PhotoSifter-debug.log
+Deleter-debug.log

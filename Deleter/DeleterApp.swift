@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct PhotoSifterApp: App {
+struct DeleterApp: App {
     @StateObject private var model = AppModel()
 
     var body: some Scene {

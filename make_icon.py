@@ -29,7 +29,7 @@ RED = (200, 16, 46)            # #C8102E
 # Flat gray-white background.
 BG = (236, 236, 238)           # #ECECEE
 
-OUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "release", "v1.0"))
+OUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "release", "v1.0"))
 
 
 # --------------------------------------------------------------------------- #
