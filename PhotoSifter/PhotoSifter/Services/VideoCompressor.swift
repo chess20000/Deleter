@@ -58,6 +58,10 @@ enum VideoCompressor {
 
         guard videoReaderTrack != nil else { throw CompressError.noReadableTracks }
 
+        // Cancellation checkpoint: bail out before creating any files if the
+        // user unmarked while we were setting up the reader/writer.
+        try Task.checkCancellation()
+
         // Build writer.
         try? FileManager.default.removeItem(at: destination)
         try BsidePathResolver.ensureParentDir(for: destination)
@@ -106,12 +110,26 @@ enum VideoCompressor {
             writerAudioInput = input
         }
 
+        // Cancellation checkpoint right before we start moving samples.
+        try Task.checkCancellation()
+
         reader.startReading()
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
 
         let videoGroup = DispatchGroup()
         let errorBox = ErrorBox()
+        let cancelled = NSLock()
+        var isCancelled = false
+
+        // Helper: cooperative cancel check shared by both pipelines. Once set,
+        // pipelines stop appending and mark their inputs finished so the
+        // DispatchGroup drains and we can throw promptly.
+        func checkCancel() {
+            if Task.isCancelled {
+                cancelled.lock(); isCancelled = true; cancelled.unlock()
+            }
+        }
 
         // Video pipeline.
         if let vIn = writerVideoInput, let vOut = videoReaderTrack {
@@ -120,8 +138,13 @@ enum VideoCompressor {
             vIn.requestMediaDataWhenReady(on: queue) { [weak reader, weak writer] in
                 guard let reader, let writer else { videoGroup.leave(); return }
                 while vIn.isReadyForMoreMediaData {
-                    if reader.status == .reading,
-                       let sample = vOut.copyNextSampleBuffer() {
+                    checkCancel()
+                    if isCancelled || reader.status != .reading {
+                        vIn.markAsFinished()
+                        videoGroup.leave()
+                        return
+                    }
+                    if let sample = vOut.copyNextSampleBuffer() {
                         if !vIn.append(sample) {
                             errorBox.set("video append: \(writer.error?.localizedDescription ?? "?")")
                         }
@@ -141,8 +164,13 @@ enum VideoCompressor {
             aIn.requestMediaDataWhenReady(on: queue) { [weak reader, weak writer] in
                 guard let reader, let writer else { videoGroup.leave(); return }
                 while aIn.isReadyForMoreMediaData {
-                    if reader.status == .reading,
-                       let sample = aOut.copyNextSampleBuffer() {
+                    checkCancel()
+                    if isCancelled || reader.status != .reading {
+                        aIn.markAsFinished()
+                        videoGroup.leave()
+                        return
+                    }
+                    if let sample = aOut.copyNextSampleBuffer() {
                         if !aIn.append(sample) {
                             errorBox.set("audio append: \(writer.error?.localizedDescription ?? "?")")
                         }
@@ -156,6 +184,14 @@ enum VideoCompressor {
         }
 
         videoGroup.wait()
+
+        cancelled.lock(); let wasCancelled = isCancelled; cancelled.unlock()
+        if wasCancelled {
+            // Tear down the partial output; the caller will delete the dest
+            // file, but cancel the writer cleanly first.
+            writer.cancelWriting()
+            throw CancellationError()
+        }
 
         if reader.status == .failed {
             throw CompressError.processingFailed(

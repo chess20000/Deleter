@@ -12,7 +12,9 @@ enum PairingService {
 
         var pairs: [MediaPair] = []
         for (_, group) in buckets {
-            let jpgs = group.filter { $0.kind == .image && !$0.isRaw }
+            // "non-raw image" = JPG, HIF, HEIC, PNG, … anything that's an
+            // image but not a RAW. These can pair with a RAW of the same stem.
+            let nonRawImages = group.filter { $0.kind == .image && !$0.isRaw }
             let raws = group.filter { $0.isRaw }
             let videos = group.filter { $0.kind == .video }
 
@@ -22,26 +24,26 @@ enum PairingService {
                     pairs.append(MediaPair(solo: v))
                 }
                 // If there happen to be jpg/raw with same stem, keep them standalone too.
-                for j in jpgs { pairs.append(MediaPair(solo: j)) }
+                for j in nonRawImages { pairs.append(MediaPair(solo: j)) }
                 for r in raws { pairs.append(MediaPair(solo: r)) }
                 continue
             }
 
-            if let raw = raws.first, let jpg = jpgs.first {
-                // RAW + JPG pair (use first of each; rare to have multiple same-stem).
-                pairs.append(MediaPair(jpgItem: jpg, rawItem: raw))
-                for extra in jpgs.dropFirst() { pairs.append(MediaPair(solo: extra)) }
+            if let raw = raws.first, let nonRaw = nonRawImages.first {
+                // RAW + non-RAW image pair (e.g. NEF+JPG, NEF+HIF).
+                pairs.append(MediaPair(jpgItem: nonRaw, rawItem: raw))
+                for extra in nonRawImages.dropFirst() { pairs.append(MediaPair(solo: extra)) }
                 for extra in raws.dropFirst() { pairs.append(MediaPair(solo: extra)) }
             } else {
                 // No pairing possible; emit each standalone, preserving order.
-                for j in jpgs { pairs.append(MediaPair(solo: j)) }
+                for j in nonRawImages { pairs.append(MediaPair(solo: j)) }
                 for r in raws { pairs.append(MediaPair(solo: r)) }
             }
         }
 
-        // Sort by primary filename for stable ordering.
+        // Sort by stem key for stable ordering (independent of display format).
         return pairs.sorted {
-            $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+            $0.stemKey.localizedStandardCompare($1.stemKey) == .orderedAscending
         }
     }
 }

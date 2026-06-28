@@ -49,7 +49,7 @@ struct QuickLookOverlay: View {
                 if model.markedPairIds.contains(pair.id) {
                     Label("已标记丢弃", systemImage: "trash.fill")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.theme)
                 }
                 Text("空格关闭 · ←→ 切换 · D 标记")
                     .font(.system(size: 11))

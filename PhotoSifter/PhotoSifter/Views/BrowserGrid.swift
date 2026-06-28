@@ -96,5 +96,14 @@ struct BrowserGrid: View {
             .onChange(of: model.thumbnailSize) { _, _ in model.gridColumns = colCount }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .overlay {
+            if model.isLoading {
+                ProgressView()
+                    .controlSize(.large)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: model.isLoading)
     }
 }

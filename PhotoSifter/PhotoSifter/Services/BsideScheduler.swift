@@ -32,6 +32,9 @@ actor BsideScheduler {
     private var queue: [QueuedJob] = []
     private var runningCount: Int = 0
     private(set) var progress = Progress()
+    /// Task handles for currently-running jobs, keyed by job id. Lets us
+    /// cancel a job mid-flight (not just dequeue it) when the user unmarks it.
+    private var runningTasks: [UUID: Task<Void, Never>] = [:]
 
     private let baseline: Int
     private var maxConcurrency: Int
@@ -115,10 +118,11 @@ actor BsideScheduler {
             progress.currentName = job.displayName
             broadcastProgress()
             let capturedName = job.displayName
-            Task { [weak self] in
+            let task = Task(priority: .utility) { [weak self] in
                 await job.work()
                 await self?.complete(jobId: job.id, currentName: capturedName)
             }
+            runningTasks[job.id] = task
         }
     }
 
@@ -126,6 +130,7 @@ actor BsideScheduler {
         runningCount -= 1
         progress.running = runningCount
         progress.completed += 1
+        runningTasks[jobId] = nil
         if progress.queued > 0 {
             progress.currentName = queue.first?.displayName
         } else if runningCount == 0 {
@@ -135,6 +140,18 @@ actor BsideScheduler {
         _ = currentName
         broadcastProgress()
         pump()
+    }
+
+    /// Cancel a job that is currently running. Cooperative: signals the task,
+    /// which is expected to observe `Task.isCancelled` in its work and bail
+    /// out. No-op if the job isn't running (already finished or still queued —
+    /// use `cancelQueued` for the latter). The job still counts as completed
+    /// once its work returns.
+    func cancelRunning(id: UUID) {
+        if let task = runningTasks[id] {
+            task.cancel()
+            // Leave the entry; complete() will clear it when work returns.
+        }
     }
 
     // MARK: - Monitoring (thermal + CPU)

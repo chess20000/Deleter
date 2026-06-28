@@ -1,6 +1,9 @@
 import Foundation
 import SwiftUI
 import Combine
+#if canImport(Darwin)
+import Darwin
+#endif
 
 /// Central observable app state.
 @MainActor
@@ -27,6 +30,16 @@ final class AppModel: ObservableObject {
     @Published var thumbnailSize: CGFloat = 160
     @Published var gridColumns: Int = 1          // measured by BrowserGrid
     @Published var loadError: String?
+    /// True while a directory scan is in flight; the grid shows a spinner overlay.
+    @Published var isLoading: Bool = false
+
+    // Disk / directory space (shown in the top bar as 40G/50G/128G).
+    /// Bytes of media files directly in the current directory.
+    @Published var currentDirBytes: Int64 = 0
+    /// Bytes of media files in the root directory (captured when root is opened).
+    @Published var rootDirBytes: Int64 = 0
+    /// Free bytes on the volume that holds the root directory.
+    @Published var freeSpaceBytes: Int64 = 0
 
     // Selection / preview.
     @Published var previewIndex: Int? = nil      // non-nil ⇒ quick-look overlay open
@@ -44,6 +57,8 @@ final class AppModel: ObservableObject {
 
     let scheduler = BsideScheduler()
     private var progressTask: Task<Void, Never>?
+    /// Monotonic token so only the latest navigate() can commit results.
+    private var navToken: Int = 0
 
     enum ViewMode { case merged, split }
     enum FillMode { case fill, fit }
@@ -82,9 +97,56 @@ final class AppModel: ObservableObject {
         currentURL = url
         breadcrumb = [url]
         navigate(to: url)
+        // Capture the root's media size + volume free space in the background.
+        // rootDirBytes is refreshed when the root scan completes (navigate sets
+        // currentDirBytes, and for the root they're the same); free space is
+        // queried from the volume directly.
+        Task.detached(priority: .utility) { [weak self] in
+            let free = Self.freeSpace(of: url)
+            await MainActor.run {
+                guard let self else { return }
+                self.freeSpaceBytes = free
+            }
+        }
+    }
+
+    /// Free bytes on the volume containing the given URL.
+    nonisolated private static func freeSpace(of url: URL) -> Int64 {
+        do {
+            let values = try url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            if let cap = values.volumeAvailableCapacityForImportantUsage {
+                return cap
+            }
+        } catch {}
+        // Fallback: statvfs.
+        var stat = statvfs()
+        if statvfs(url.path, &stat) == 0 {
+            return Int64(stat.f_bavail) * Int64(stat.f_frsize)
+        }
+        return 0
+    }
+
+    /// Format a byte count as a compact human-readable size, e.g. "40G", "1.2T", "512M".
+    nonisolated static func formatBytes(_ bytes: Int64) -> String {
+        let units: [(String, Int64)] = [("T", 1 << 40), ("G", 1 << 30), ("M", 1 << 20), ("K", 1 << 10)]
+        for (suffix, threshold) in units {
+            if bytes >= threshold {
+                let value = Double(bytes) / Double(threshold)
+                // Show one decimal when < 10, else round to integer.
+                if value < 10 {
+                    return String(format: "%.1f%@", value, suffix)
+                }
+                return "\(Int(value.rounded()))\(suffix)"
+            }
+        }
+        return "\(bytes)B"
     }
 
     func navigate(to url: URL) {
+        navigate(to: url, selectURL: nil)
+    }
+
+    func navigate(to url: URL, selectURL: URL?) {
         currentURL = url
         // Rebuild breadcrumb from root.
         if let root = rootURL {
@@ -100,26 +162,65 @@ final class AppModel: ObservableObject {
             breadcrumb = path
         }
         loadError = nil
-        do {
-            let result = try DirectoryScanner.scan(directory: url)
-            folders = result.folders
+        isLoading = true
+
+        // Only the most recent navigate() may commit results; stale tasks
+        // from rapid folder changes are discarded by token comparison.
+        navToken &+= 1
+        let token = navToken
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let result: DirectoryScanner.ScanResult?
+            do {
+                result = try await Task.detached { try DirectoryScanner.scan(directory: url) }.value
+            } catch {
+                await MainActor.run {
+                    guard let self, self.navToken == token else { return }
+                    self.folders = []
+                    self.pairs = []
+                    self.loadError = "无法读取目录：\(error.localizedDescription)"
+                    self.isLoading = false
+                }
+                return
+            }
+            guard let result else { return }
             let grouped = PairingService.pair(items: result.media)
-            pairs = grouped
-            resortPairs()
-            // Select the first grid item (folder if any, else first media).
-            selection = gridItems.first
-            restoreMarkings(for: grouped)
-        } catch {
-            folders = []
-            pairs = []
-            loadError = "无法读取目录：\(error.localizedDescription)"
+
+            await MainActor.run {
+                guard let self, self.navToken == token else { return }
+                self.folders = result.folders
+                self.pairs = grouped
+                self.resortPairs()
+                self.currentDirBytes = result.currentDirBytes
+                // When at the root, the current dir's size IS the root size.
+                if url.path == self.rootURL?.path {
+                    self.rootDirBytes = result.currentDirBytes
+                }
+                // When returning up a folder (goUp), keep the selection on the
+                // sub-folder we just came out of, instead of jumping to the
+                // first item.
+                if let target = selectURL,
+                   let folder = result.folders.first(where: { $0.url.path == target.path }) {
+                    self.selection = .folder(folder.id)
+                } else {
+                    self.selection = self.gridItems.first
+                }
+                self.restoreMarkings(for: grouped)
+                self.isLoading = false
+            }
         }
     }
 
     func goUp() {
         guard breadcrumb.count > 1 else { return }
+        // Close any open preview so it doesn't dangle over the new directory
+        // (its previewIndex would be stale / out of bounds after navigation).
+        closePreview()
         let parent = breadcrumb[breadcrumb.count - 2]
-        navigate(to: parent)
+        // Remember the folder we're leaving so the selection lands on it after
+        // navigating up — instead of jumping back to the first item.
+        let leavingURL = currentURL
+        navigate(to: parent, selectURL: leavingURL)
     }
 
     func openFolder(_ folder: FolderEntry) {
@@ -136,7 +237,7 @@ final class AppModel: ObservableObject {
         switch sortMode {
         case .name:
             pairs.sort {
-                $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
+                $0.stemKey.localizedStandardCompare($1.stemKey) == .orderedAscending
             }
         case .date:
             pairs.sort { $0.dateTaken < $1.dateTaken }
@@ -145,12 +246,10 @@ final class AppModel: ObservableObject {
 
     // MARK: - Session restore
 
-    /// Scan bside tree to recover "marked + completed" state for pairs whose
-    /// bside copy already exists.
+    /// Scan for existing bside copies to recover "marked + completed" state.
     private func restoreMarkings(for grouped: [MediaPair]) {
-        guard let root = rootURL else { return }
         for pair in grouped {
-            let dest = BsidePathResolver.destination(for: pair.primary.url, root: root)
+            let dest = BsidePathResolver.destination(for: pair.primary.url)
             if FileManager.default.fileExists(atPath: dest.path) {
                 markedPairIds.insert(pair.id)
                 jobStatus[pair.id] = .completed
@@ -206,14 +305,14 @@ final class AppModel: ObservableObject {
     }
 
     private func mark(pairId: UUID) {
-        guard let pair = pair(by: pairId), let root = rootURL else { return }
+        guard let pair = pair(by: pairId) else { return }
         markedPairIds.insert(pairId)
 
         // If a completed copy already exists (restored), nothing to schedule.
         if case .completed = jobStatus[pairId] { return }
 
         let source = pair.primary.url
-        let dest = BsidePathResolver.destination(for: source, root: root)
+        let dest = BsidePathResolver.destination(for: source)
         let isVideo = pair.isVideo
         jobStatus[pairId] = .queued
 
@@ -241,8 +340,8 @@ final class AppModel: ObservableObject {
         let status = jobStatus[pairId]
         // Per user spec: unmarking always deletes the bside file if it exists,
         // regardless of job state, keeping the bside mirror clean.
-        if let root = rootURL, let pair = pair(by: pairId) {
-            let dest = BsidePathResolver.destination(for: pair.primary.url, root: root)
+        if let pair = pair(by: pairId) {
+            let dest = BsidePathResolver.destination(for: pair.primary.url)
             try? FileManager.default.removeItem(at: dest)
         }
         switch status {
@@ -253,9 +352,11 @@ final class AppModel: ObservableObject {
             jobStatus[pairId] = nil
             restoredCompleted.remove(pairId)
         case .running:
-            // Can't safely cancel mid-run; the bside file (if partially written)
-            // was removed above. Mark cleared so it won't be trashed.
-            jobStatus[pairId] = nil
+            // Cancel the in-flight compression immediately. The work will
+            // observe cancellation, bail out, and clear its own status — so we
+            // don't touch jobStatus here (the running task owns it until it
+            // returns). The partial bside file was already removed above.
+            Task { await scheduler.cancelRunning(id: pairId) }
         case .failed, .none:
             jobStatus[pairId] = nil
             failedPairIds.remove(pairId)
@@ -279,19 +380,39 @@ final class AppModel: ObservableObject {
             self.jobStatus[pairId] = .running
         }
         do {
+            // Run the heavy work in this (cancellable) task context. We do NOT
+            // use Task.detached here: a detached task cannot be cancelled from
+            // the outside, and we need unmark → scheduler.cancelRunning to be
+            // able to stop a compression in progress.
             if isVideo {
-                try await Task.detached(priority: .utility) {
-                    try await VideoCompressor.compress(source: source, to: dest)
-                }.value
+                try await VideoCompressor.compress(source: source, to: dest)
             } else {
-                try await Task.detached(priority: .utility) {
-                    try ImageCompressor.compress(
-                        source: source, to: dest, preferSourceURL: preferSource
-                    )
-                }.value
+                // ImageCompressor.compress is synchronous (throws but not async);
+                // it still honors Task cancellation via checkCancellation().
+                try ImageCompressor.compress(
+                    source: source, to: dest, preferSourceURL: preferSource
+                )
             }
+            // Bail out silently if the user cancelled while we were finishing.
+            if Task.isCancelled { return }
             await MainActor.run {
+                // Guard against the re-mark race: if the pair was unmarked and
+                // re-marked while we ran, a fresh job owns the status now.
+                guard self.markedPairIds.contains(pairId) else { return }
                 self.jobStatus[pairId] = .completed
+                self.failedPairIds.remove(pairId)
+            }
+        } catch is CancellationError {
+            // User unmarked mid-flight: clean up any partial output (unmark
+            // already removed the bside file, but be defensive) and leave the
+            // status cleared. Do NOT record as failed. Guard against the
+            // re-mark race: if the pair was marked again before we got here,
+            // a fresh job owns the status now — don't clobber it.
+            try? FileManager.default.removeItem(at: dest)
+            await MainActor.run {
+                if !self.markedPairIds.contains(pairId) {
+                    self.jobStatus[pairId] = nil
+                }
                 self.failedPairIds.remove(pairId)
             }
         } catch {

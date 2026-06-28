@@ -20,15 +20,23 @@ enum ImageCompressor {
 
     /// Compress the source image to `destination`. Uses `preferSourceURL`
     /// (typically the JPG of a RAW+JPG pair) when provided.
+    ///
+    /// Cancellation: this is a cooperative cancellable — it periodically calls
+    /// `Task.checkCancellation()` so an unmark mid-flight can stop the work
+    /// promptly instead of running the full encode pipeline to completion.
     static func compress(
         source: URL,
         to destination: URL,
         preferSourceURL: URL? = nil
     ) throws {
         let resolved = preferSourceURL ?? source
+        try Task.checkCancellation()
         let cgImage = try decodeCGImage(url: resolved)
+        try Task.checkCancellation()
         try ensureParent(for: destination)
+        try Task.checkCancellation()
         let data = try encodeTargetSize(cgImage: cgImage)
+        try Task.checkCancellation()
         try data.write(to: destination, options: .atomic)
     }
 
@@ -41,6 +49,7 @@ enum ImageCompressor {
                 return img
             }
         }
+        try Task.checkCancellation()
         // Regular images (JPG/PNG/HEIC/...): ImageIO full source.
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let img = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
@@ -58,6 +67,9 @@ enum ImageCompressor {
         let qualities: [CGFloat] = [0.85, 0.75, 0.65, 0.55, 0.45, minQuality]
         var bestData: Data? = nil
         for q in qualities {
+            // Each encode is a full JPEG pass; check between passes so an
+            // unmark can stop us promptly rather than finishing all levels.
+            try Task.checkCancellation()
             guard let data = encodeJPEG(cgImage: scaled, quality: q) else { continue }
             bestData = data
             if data.count <= targetBytes {

@@ -2,6 +2,9 @@
 PhotoSifter/Build/
 Build/
 
+# Release artifacts (DMG + generated icons — reproducible via build.sh / make_icon.py)
+release/
+
 # macOS
 .DS_Store
 *.swp

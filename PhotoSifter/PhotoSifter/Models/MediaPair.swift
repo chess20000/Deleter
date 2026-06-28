@@ -43,7 +43,16 @@ struct MediaPair: Identifiable, Hashable {
     }
 
     var stemKey: String { primary.stemKey }
-    var displayName: String { primary.displayName }
+    /// Display name: for a RAW + non-RAW pair, show "IMG_0001.nef+jpg" /
+    /// "IMG_0001.nef+hif" etc.; for a solo item, just its filename.
+    var displayName: String {
+        if isPair, let rawItem, let nonRawItem = jpgItem {
+            let rawExt = rawItem.url.pathExtension
+            let nonRawExt = nonRawItem.url.pathExtension
+            return "\(stemKey).\(rawExt)+\(nonRawExt)"
+        }
+        return primary.displayName
+    }
     var dateTaken: Date { primary.dateTaken }
 
     /// Any RAW file in this pair (the paired RAW, or a standalone RAW).

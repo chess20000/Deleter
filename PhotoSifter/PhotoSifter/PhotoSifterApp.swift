@@ -10,6 +10,7 @@ struct PhotoSifterApp: App {
             RootView(model: model)
                 .frame(minWidth: 900, minHeight: 600)
                 .environmentObject(model)
+                .tint(.theme)
         }
         .windowStyle(.titleBar)
         .commands {

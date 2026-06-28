@@ -26,7 +26,7 @@ struct MediaCell: View {
                     .clipShape(RoundedRectangle(cornerRadius: 3))
                     .overlay(
                         RoundedRectangle(cornerRadius: 3)
-                            .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 3)
+                            .strokeBorder(isSelected ? Color.theme : Color.clear, lineWidth: 3)
                     )
 
                 statusBadges
@@ -119,7 +119,7 @@ struct MediaCell: View {
     private var statusBadges: some View {
         VStack(alignment: .trailing, spacing: 4) {
             if isMarked {
-                badge(systemName: "trash.fill", color: .red, label: "丢弃")
+                badge(systemName: "trash.fill", color: Color.theme, label: "丢弃")
             }
             switch jobStatus {
             case .running:

@@ -60,7 +60,7 @@ struct StartScreen: View {
                     .padding(.vertical, 10)
             }
             .buttonStyle(.borderedProminent)
-            Text("将在此目录旁生成同名 _bside 副本目录")
+            Text("压缩副本将生成在各原片所在目录的 _bside 子文件夹中")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -237,7 +237,12 @@ final class KeyCaptureView: NSView {
         }
 
         // Backspace goes up one folder.
-        if key == .init(UnicodeScalar(0x7f)) && flags.isEmpty {
+        // Match by keyCode (51 = Delete/Backspace) rather than the character,
+        // because charactersIgnoringModifiers is unreliable for this key under
+        // some layouts/IMEs. Also fall back to the U+007F char for safety.
+        let isBackspace = kc == 51 || key == "\u{7f}"
+        if isBackspace &&
+            flags.intersection([.command, .control, .option, .shift]).isEmpty {
             model.goUp()
             return nil
         }

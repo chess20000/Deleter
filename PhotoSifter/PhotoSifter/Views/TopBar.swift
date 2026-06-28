@@ -14,6 +14,7 @@ struct TopBar: View {
             HStack(spacing: 12) {
                 breadcrumbView
                 Spacer(minLength: 8)
+                capacityLabel
                 settingsButton
                 discardButton
             }
@@ -36,7 +37,7 @@ struct TopBar: View {
                 .frame(width: 28, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(showSettings ? Color.accentColor.opacity(0.2) : Color.clear)
+                        .fill(showSettings ? Color.theme.opacity(0.2) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -69,7 +70,7 @@ struct TopBar: View {
                         .frame(height: 2)
                     if p.total > 0 {
                         Rectangle()
-                            .fill(p.failed > 0 ? Color.orange : Color.accentColor)
+                            .fill(p.failed > 0 ? Color.orange : Color.theme)
                             .frame(width: geo.size.width * p.fraction, height: 2)
                     }
                 }
@@ -120,6 +121,19 @@ struct TopBar: View {
         }
     }
 
+    // MARK: - Capacity (current / root-initial / disk free)
+
+    private var capacityLabel: some View {
+        // 40G / 50G / 128G  — current dir size / root dir size / volume free.
+        let text = "\(AppModel.formatBytes(model.currentDirBytes)) / " +
+                   "\(AppModel.formatBytes(model.rootDirBytes)) / " +
+                   "\(AppModel.formatBytes(model.freeSpaceBytes))"
+        return Text(text)
+            .font(.system(size: 16, weight: .bold, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .help("当前目录 / 根目录 / 磁盘可用空间")
+    }
+
     // MARK: - Discard button
 
     private var discardButton: some View {
@@ -142,7 +156,7 @@ struct TopBar: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(count > 0 ? Color.red : Color.red.opacity(0.35))
+                    .fill(count > 0 ? Color.theme : Color.theme.opacity(0.35))
             )
             .foregroundStyle(.white)
         }
