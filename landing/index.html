@@ -82,9 +82,8 @@
     background: rgba(255, 255, 255, 0.04);
     color: var(--text);
     border-color: var(--border);
-    box-shadow: 0 8px 24px rgba(183, 43, 53, 0.35);
   }
-  .btn-primary:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(183, 43, 53, 0.5); }
+  .btn-primary:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); }
   .btn-ghost {
     background: rgba(255, 255, 255, 0.04);
     color: var(--text);
@@ -123,7 +122,7 @@
     color: var(--muted);
     font-size: 13px;
   }
-  footer a { color: var(--muted); text-decoration: none; }
+  footer a { color: var(--muted); text-decoration: underline; }
   footer a:hover { color: var(--text); }
 </style>
 </head>
@@ -134,17 +133,13 @@
   <h1>Deleter</h1>
   <p class="tagline">macOS 照片 / 视频筛选器。浏览、预览、标记丢弃，生成压缩副本后丢弃原片。</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/chess20000/Deleter/releases/download/v1.0/Deleter.dmg">
+    <a class="btn btn-primary" href="https://gh-proxy.com/github.com/chess20000/Deleter/releases/latest/download/Deleter.dmg" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="7 10 12 15 17 10"></polyline>
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
       下载 Deleter.dmg
-    </a>
-    <a class="btn btn-ghost" href="https://github.com/chess20000/Deleter" target="_blank" rel="noopener">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
-      GitHub
     </a>
   </div>
   <p class="platform-note">macOS 14+ · v1.0 · Apache-2.0</p>
