@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deleter — macOS 照片视频筛选器</title>
+<meta name="description" content="Deleter 是一个 macOS 照片/视频筛选器：浏览目录、快速预览、标记丢弃，生成压缩副本后丢弃原片。">
+<style>
+  :root {
+    --red: #b72b35;
+    --red-bright: #d63a45;
+    --bg: #0d0b0c;
+    --bg-soft: #151112;
+    --text: #f4eded;
+    --muted: #9a8e8f;
+    --border: rgba(255, 255, 255, 0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  header.hero {
+    min-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    width: 640px; height: 640px;
+    background: radial-gradient(circle, rgba(183, 43, 53, 0.28), transparent 65%);
+    top: -180px; left: 50%; transform: translateX(-50%);
+    filter: blur(20px);
+    pointer-events: none;
+  }
+  .logo {
+    width: 92px; height: 92px;
+    margin-bottom: 28px;
+    border-radius: 22px;
+    background: linear-gradient(145deg, var(--red-bright), var(--red));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 18px 48px rgba(183, 43, 53, 0.45);
+    position: relative;
+  }
+  .logo svg { width: 46px; height: 46px; }
+  h1 {
+    font-size: clamp(40px, 8vw, 68px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .tagline {
+    font-size: clamp(17px, 2.4vw, 21px);
+    color: var(--muted);
+    max-width: 560px;
+    margin-bottom: 38px;
+    position: relative;
+  }
+  .cta { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; position: relative; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: var(--red);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(183, 43, 53, 0.35);
+  }
+  .btn-primary:hover { background: var(--red-bright); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(183, 43, 53, 0.5); }
+  .btn-ghost {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); }
+  .btn svg { width: 19px; height: 19px; }
+  .platform-note {
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--muted);
+    position: relative;
+  }
+
+  /* Features */
+  section.features { padding: 72px 0; }
+  .features h2 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 36px;
+    text-align: center;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .card {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+  }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .card p { font-size: 14px; color: var(--muted); }
+  .card .ic { color: var(--red-bright); margin-bottom: 12px; }
+  .card .ic svg { width: 22px; height: 22px; }
+
+  /* Install */
+  section.install { padding: 56px 0 80px; text-align: center; }
+  .install h2 { font-size: 26px; font-weight: 700; margin-bottom: 14px; }
+  .install p { color: var(--muted); margin-bottom: 22px; }
+  pre {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    text-align: left;
+    overflow-x: auto;
+    font-size: 13px;
+    color: #e0d4d5;
+    font-family: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+  }
+  pre .c { color: var(--muted); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="logo" aria-hidden="true">
+    <!-- 垃圾桶标记图标，呼应「丢弃」主题 -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+      <path d="M10 11v6M14 11v6"></path>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+    </svg>
+  </div>
+  <h1>Deleter</h1>
+  <p class="tagline">macOS 照片 / 视频筛选器。浏览、预览、标记丢弃，生成压缩副本后丢弃原片。</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/chess20000/Deleter/releases/download/v1.0/Deleter.dmg">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      下载 Deleter.dmg
+    </a>
+    <a class="btn btn-ghost" href="https://github.com/chess20000/Deleter" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+      GitHub
+    </a>
+  </div>
+  <p class="platform-note">macOS 14+ · v1.0 · Apache-2.0</p>
+</header>
+
+<section class="features">
+  <div class="wrap">
+    <h2>核心功能</h2>
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <h3>Finder 风格网格</h3>
+        <p>文件夹与媒体混合展示，等间距方形缩略图，按需懒加载生成。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/></svg></div>
+        <h3>快速预览</h3>
+        <p>空格全屏 Quick Look，方向键切换，支持缩放与视频播放。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 13h10"/></svg></div>
+        <h3>键盘驱动</h3>
+        <p>方向键导航，D 标记丢弃，回车进入或预览，退格返回上层。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M12 11v6M9 14h6"/></svg></div>
+        <h3>RAW + JPG 配对</h3>
+        <p>自动识别同 base 名的 RAW/JPG，可合并或分开显示。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v8a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>压缩副本 B-side</h3>
+        <p>标记项在 _bside 子目录生成压缩副本：图片转 JPEG，视频重编码。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></div>
+        <h3>丢弃原片</h3>
+        <p>副本生成完成后，一键将原片移入废纸篓，安全腾出空间。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="install">
+  <div class="wrap">
+    <h2>安装</h2>
+    <p>下载 dmg，将 Deleter.app 拖入「应用程序」。未签名，首次打开需移除隔离属性：</p>
+<pre><code><span class="c"># 移除 macOS 隔离属性</span>
+xattr -dr com.apple.quarantine /Applications/Deleter.app</code></pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Deleter · <a href="https://github.com/chess20000/Deleter" target="_blank" rel="noopener">GitHub</a> · Apache License 2.0
+  </div>
+</footer>
+
+</body>
+</html>
